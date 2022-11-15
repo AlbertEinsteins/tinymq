@@ -1,4 +1,4 @@
-package com.tinymq;
+package com.tinymq.broker;
 
 /**
  * Hello world!

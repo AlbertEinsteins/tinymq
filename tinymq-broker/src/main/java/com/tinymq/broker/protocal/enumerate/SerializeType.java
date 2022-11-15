@@ -1,4 +1,4 @@
-package com.tinymq.protocal.enumerate;
+package com.tinymq.broker.protocal.enumerate;
 
 /**
  * 通信过程的序列化类型
@@ -11,7 +11,7 @@ public enum SerializeType {
     // JDK 提供的序列化
     JDK_SERIALIZE((byte)3),
     // Google Protobuf 序列化
-    PROTOBUF_SERIALIZE((byte)3);
+    PROTOBUF_SERIALIZE((byte)4);
 
 
     public byte code;
