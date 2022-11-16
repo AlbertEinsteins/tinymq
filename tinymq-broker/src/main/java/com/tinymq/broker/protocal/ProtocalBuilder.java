@@ -12,7 +12,6 @@ import java.nio.ByteBuffer;
  * |------------------------------| (data)
  */
 public class ProtocalBuilder {
-    private static final int MAGIC_NUMBER = 0x11;
     private static final byte DEFAULT_VERSION = 1;
 
     private ByteBuffer buffer;
@@ -28,20 +27,22 @@ public class ProtocalBuilder {
         this.buffer = ByteBuffer.allocate(bufferCapacity + dataOffset);
     }
 
-    private void write(byte version, byte direction, byte serialType, byte[] data) {
+    private void write(int magicNumber, byte packageType, byte serialType, byte[] data) {
         if(buffer.capacity() < dataOffset + data.length) {
             throw new RuntimeException("the protocal build buffer size is lower than the data, check the buffer size");
         }
 
         buffer.clear();
-        buffer.putInt(0, MAGIC_NUMBER);
-        buffer.put(4, DEFAULT_VERSION);
-        buffer.put(5, direction);
-        buffer.put(6, serialType);
-//        buffer.put(7, 0); 第8个字节保留
-        buffer.putInt(8, data.length);
-        for(int i = 0; i < data.length; i++) {
-            buffer.put(i + dataOffset, data[i]);
+        buffer.putInt(magicNumber);
+        buffer.put(DEFAULT_VERSION);
+        buffer.put(packageType);
+        buffer.put(serialType);
+
+        buffer.put((byte) 0);     // 第8个字节保留
+
+        buffer.putInt(data.length);
+        for (byte dt : data) {
+            buffer.put(dt);
         }
     }
 
@@ -49,7 +50,7 @@ public class ProtocalBuilder {
      * 对外提供两个方法，将MPackage编码为byte[]数组, 和将byte[]解码为Mpackage
      */
     public byte[] encodePackage(MPackage mPackage) {
-        write(mPackage.getVersion(), mPackage.getPackageType().code, mPackage.getSerializeType().code,
+        write(MPackage.MAGIC_NUMBER, mPackage.getPackageType().code, mPackage.getSerializeType().code,
                 mPackage.getBody());
         buffer.flip();
         byte[] bytes = new byte[mPackage.getBody().length + dataOffset];
@@ -66,8 +67,8 @@ public class ProtocalBuilder {
 
         ByteBuffer wrap = ByteBuffer.wrap(mPackage);
         magicNumber = wrap.get();
-        if(magicNumber != MAGIC_NUMBER) {
-            throw new RuntimeException("maigc number rejected, the package is the wrong package.");
+        if(magicNumber != MPackage.MAGIC_NUMBER) {
+            throw new RuntimeException("magic number rejected, the package is the wrong package.");
         }
         version = wrap.get();
         packageType = wrap.get();
@@ -76,7 +77,7 @@ public class ProtocalBuilder {
         int dataLen = wrap.getInt();
         body = new byte[dataLen];
         wrap.get(body, dataOffset - 1, dataLen);
-        return MPackage.build(magicNumber, version, PackageType.fromInt((byte)packageType),
+        return MPackage.build(PackageType.fromInt(packageType),
                 SerializeType.fromByteCode(serialType), body);
     }
 }
