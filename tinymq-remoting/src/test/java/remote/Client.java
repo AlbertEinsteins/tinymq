@@ -20,6 +20,7 @@ public class Client {
 
         client.start();
 
+        //create message
         RemotingCommand msg = new RemotingCommand();
         String body = "123";
         msg.setBody(body.getBytes(StandardCharsets.UTF_8));
@@ -27,20 +28,8 @@ public class Client {
         // set request code
         msg.setCode(100);
 
-//        final InvokeCallback callback = new InvokeCallback() {
-//            @Override
-//            public void operationComplete(ResponseFuture responseFuture) {
-//                RemotingMessage message = null;
-//                try {
-//                    message = responseFuture.waitResponse();
-//                } catch (InterruptedException e) {
-//                    System.out.println(e);
-//                    throw new RuntimeException(e);
-//                }
-//                System.out.println(message);
-//            }
-//        };
-
         client.invokeOneway("127.0.0.1:7800", msg, 10000);
+        client.invokeSync();
+        client.invokeAsync();
     }
 }
