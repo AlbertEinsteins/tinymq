@@ -8,6 +8,7 @@ import com.tinymq.remote.common.RemotingUtils;
 import com.tinymq.remote.exception.RemotingConnectException;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
+import com.tinymq.remote.exception.RemotingTooMuchException;
 import com.tinymq.remote.protocol.RemotingCommand;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
@@ -260,7 +261,8 @@ public class NettyRemotingClient extends AbstractNettyRemoting
     }
 
     @Override
-    public void invokeAsync(String addr, RemotingCommand request, long timeoutMillis, InvokeCallback callback) throws RemotingConnectException, RemotingTimeoutException, InterruptedException, RemotingSendRequestException {
+    public void invokeAsync(String addr, RemotingCommand request, long timeoutMillis, InvokeCallback callback)
+            throws RemotingConnectException, RemotingTimeoutException, InterruptedException, RemotingSendRequestException, RemotingTooMuchException {
         long beginTimeStamp = System.currentTimeMillis();
         final Channel channel = this.getOrCreateChannel(addr);
         if(channel != null && channel.isActive()) {
@@ -287,7 +289,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
     }
 
     @Override
-    public void invokeOneway(String addr, RemotingCommand request, long timeoutMillis) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
+    public void invokeOneway(String addr, RemotingCommand request, long timeoutMillis) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException, RemotingTooMuchException {
         long beginTimeStamp = System.currentTimeMillis();
         final Channel channel = this.getOrCreateChannel(addr);
         if(channel != null && channel.isActive()) {
@@ -315,12 +317,12 @@ public class NettyRemotingClient extends AbstractNettyRemoting
     }
 
     @Override
-    public void registerProcessor(int code, RemotingProcessor processor, ExecutorService executorService) {
+    public void registerProcessor(int code, RequestProcessor processor, ExecutorService executorService) {
         ExecutorService curExecutor = executorService;
         if(curExecutor == null) {
             curExecutor = this.publicExecutorService;
         }
-        Pair<RemotingProcessor, ExecutorService> pair = new Pair<>(processor, curExecutor);
+        Pair<RequestProcessor, ExecutorService> pair = new Pair<>(processor, curExecutor);
         this.processorTable.put(code, pair);
     }
 

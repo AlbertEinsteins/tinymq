@@ -2,14 +2,14 @@ package remote;
 
 import com.tinymq.remote.netty.NettyRemotingServer;
 import com.tinymq.remote.netty.NettyServerConfig;
-import com.tinymq.remote.netty.RemotingProcessor;
+import com.tinymq.remote.netty.RequestProcessor;
 import com.tinymq.remote.protocol.RemotingCommand;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.nio.charset.StandardCharsets;
 
 public class Server {
-    static class MyProcessor implements RemotingProcessor {
+    static class MyRequestProcessor implements RequestProcessor {
         @Override
         public RemotingCommand process(ChannelHandlerContext ctx, RemotingCommand request) {
             String receive = new String(request.getBody(), StandardCharsets.UTF_8);
@@ -30,7 +30,7 @@ public class Server {
         serverConfig.setListenPort(7800);
 
         NettyRemotingServer server = new NettyRemotingServer(serverConfig);
-        server.registerProcessor(100, new MyProcessor(), null);
+        server.registerProcessor(100, new MyRequestProcessor(), null);
 
         server.start();
     }

@@ -8,6 +8,7 @@
     <modules>
         <module>tinymq-broker</module>
         <module>tinymq-remoting</module>
+        <module>tinymq-namesrv</module>
     </modules>
     <packaging>pom</packaging>
 

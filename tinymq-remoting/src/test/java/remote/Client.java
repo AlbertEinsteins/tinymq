@@ -5,6 +5,7 @@ package remote;
 import com.tinymq.remote.exception.RemotingConnectException;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
+import com.tinymq.remote.exception.RemotingTooMuchException;
 import com.tinymq.remote.netty.NettyClientConfig;
 import com.tinymq.remote.netty.NettyRemotingClient;
 import com.tinymq.remote.protocol.RemotingCommand;
@@ -12,7 +13,7 @@ import com.tinymq.remote.protocol.RemotingCommand;
 import java.nio.charset.StandardCharsets;
 
 public class Client {
-    public static void main(String[] args) throws RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException, InterruptedException {
+    public static void main(String[] args) throws RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException, InterruptedException, RemotingTooMuchException {
         NettyClientConfig clientConfig = new NettyClientConfig();
         NettyRemotingClient client = new NettyRemotingClient(clientConfig);
 

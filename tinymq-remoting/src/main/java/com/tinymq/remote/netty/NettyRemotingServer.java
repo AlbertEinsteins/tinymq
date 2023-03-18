@@ -6,6 +6,7 @@ import com.tinymq.remote.RPCHook;
 import com.tinymq.remote.RemotingServer;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
+import com.tinymq.remote.exception.RemotingTooMuchException;
 import com.tinymq.remote.protocol.RemotingCommand;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -157,12 +158,12 @@ public class NettyRemotingServer extends AbstractNettyRemoting
     }
 
     @Override
-    public void registerProcessor(int requestCode, RemotingProcessor processor, ExecutorService executor) {
+    public void registerProcessor(int requestCode, RequestProcessor processor, ExecutorService executor) {
         ExecutorService curExecutor = executor;
         if(curExecutor == null) {
             curExecutor = this.publicExecutor;
         }
-        Pair<RemotingProcessor, ExecutorService> servicePair = new Pair<>(processor, curExecutor);
+        Pair<RequestProcessor, ExecutorService> servicePair = new Pair<>(processor, curExecutor);
         this.processorTable.put(requestCode, servicePair);
     }
 
@@ -172,7 +173,7 @@ public class NettyRemotingServer extends AbstractNettyRemoting
     }
 
     @Override
-    public void registerDefaultProcessor(RemotingProcessor processor, ExecutorService executor) {
+    public void registerDefaultProcessor(RequestProcessor processor, ExecutorService executor) {
         this.defaultProcessor = new Pair<>(processor, executor);
     }
 
@@ -183,12 +184,12 @@ public class NettyRemotingServer extends AbstractNettyRemoting
     }
 
     @Override
-    public void invokeAsync(Channel channel, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException {
+    public void invokeAsync(Channel channel, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingTooMuchException {
         this.invokeAsyncImpl(channel, request, timeoutMillis, invokeCallback);
     }
 
     @Override
-    public void invokeOneway(Channel channel, RemotingCommand request, long timeoutMillis) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException {
+    public void invokeOneway(Channel channel, RemotingCommand request, long timeoutMillis) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingTooMuchException {
         this.invokeOnewayImpl(channel, request, timeoutMillis);
     }
 
@@ -212,4 +213,5 @@ public class NettyRemotingServer extends AbstractNettyRemoting
             processMessage(ctx, msg);
         }
     }
+
 }

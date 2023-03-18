@@ -7,6 +7,7 @@ import com.tinymq.remote.RPCHook;
 import com.tinymq.remote.common.RemotingUtils;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
+import com.tinymq.remote.exception.RemotingTooMuchException;
 import com.tinymq.remote.protocol.NettyResponseCode;
 import com.tinymq.remote.protocol.RemotingCommand;
 import io.netty.channel.Channel;
@@ -25,10 +26,10 @@ public abstract class AbstractNettyRemoting {
     /**
      * 对应状态码处理器表
      */
-    protected final Map<Integer /* code */, Pair<RemotingProcessor, ExecutorService>> processorTable
+    protected final Map<Integer /* code */, Pair<RequestProcessor, ExecutorService>> processorTable
             = new HashMap<>(64);
 
-    protected Pair<RemotingProcessor, ExecutorService> defaultProcessor;
+    protected Pair<RequestProcessor, ExecutorService> defaultProcessor;
     /**
      * 缓存请求-响应的表
      */
@@ -85,8 +86,8 @@ public abstract class AbstractNettyRemoting {
     }
 
     public void processRequestMessage(ChannelHandlerContext ctx, RemotingCommand msg) {
-        final Pair<RemotingProcessor, ExecutorService> servicePair = processorTable.get(msg.getCode());
-        final Pair<RemotingProcessor, ExecutorService> pair = servicePair == null ? defaultProcessor : servicePair;
+        final Pair<RequestProcessor, ExecutorService> servicePair = processorTable.get(msg.getCode());
+        final Pair<RequestProcessor, ExecutorService> pair = servicePair == null ? defaultProcessor : servicePair;
         final int reqId = msg.getRequestId();
 
         if(pair == null) {
@@ -130,10 +131,15 @@ public abstract class AbstractNettyRemoting {
                             }
                         }
                     };
-
-                    RemotingProcessor processor = pair.getKey();
-                    RemotingCommand response = processor.process(ctx, msg);
-                    callBack.operationComplete(response);
+                    if(pair.getKey() instanceof AsyncRequestProcessor) {
+                        AsyncRequestProcessor asyncRequestProcessor = (AsyncRequestProcessor) pair.getKey();
+                        asyncRequestProcessor.asyncProcess(ctx, msg, callBack);
+                    }
+                    else {
+                        RequestProcessor processor = pair.getKey();
+                        RemotingCommand response = processor.process(ctx, msg);
+                        callBack.operationComplete(response);
+                    }
                 } catch (Throwable e) {
                     LOGGER.error("request process error");
                     LOGGER.error(msg.toString());
@@ -255,7 +261,7 @@ public abstract class AbstractNettyRemoting {
     }
 
     public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, InvokeCallback invokeCallback)
-            throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException {
+            throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingTooMuchException {
         final long beginTimeStamp = System.currentTimeMillis();
         boolean isAcquire = semaphoreAsync.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
         if(isAcquire) {
@@ -281,7 +287,7 @@ public abstract class AbstractNettyRemoting {
             });
         } else {
             if(timeoutMillis <= 0) {
-                throw new RemotingSendRequestException("invokeAsyncImpl send too fast exception");
+                throw new RemotingTooMuchException("invokeAsyncImpl send too fast exception");
             }
             String info = String.format("invokeAsyncImpl timeout, wait in queue: %d, timeout %d",
                     semaphoreAsync.getQueueLength(), timeoutMillis);
@@ -290,7 +296,7 @@ public abstract class AbstractNettyRemoting {
         }
     }
     /* 该方法没有回应，需要自己主动释放信号量(permits) */
-    public void invokeOnewayImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+    public void invokeOnewayImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException, RemotingTooMuchException {
         final long beginTimeStamp = System.currentTimeMillis();
         boolean isAcquire = semaphoreOneWay.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
         request.markOneWayType();
@@ -318,7 +324,7 @@ public abstract class AbstractNettyRemoting {
 
         } else {
             if(timeoutMillis <= 0) {
-                throw new RemotingSendRequestException("invokeOnewayImpl send too fast exception");
+                throw new RemotingTooMuchException("invokeOnewayImpl send too fast exception");
             }
             String info = String.format("invokeOnewayImpl timeout, wait in queue: %d, timeout %d",
                     semaphoreAsync.getQueueLength(), timeoutMillis);

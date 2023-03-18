@@ -15,6 +15,7 @@ public class ResponseFuture {
     private final long timeoutMillis;
     private final InvokeCallback invokeCallback;
 
+    /* 保证回调函数只执行一次 */
     private final AtomicBoolean invokeOnce = new AtomicBoolean(true);
     private final long beginTimestamp = System.currentTimeMillis();
 

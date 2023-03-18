@@ -4,7 +4,8 @@ package com.tinymq.remote;
 import com.tinymq.remote.exception.RemotingConnectException;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
-import com.tinymq.remote.netty.RemotingProcessor;
+import com.tinymq.remote.exception.RemotingTooMuchException;
+import com.tinymq.remote.netty.RequestProcessor;
 import com.tinymq.remote.protocol.RemotingCommand;
 
 import java.util.concurrent.ExecutorService;
@@ -29,18 +30,17 @@ public interface RemotingClient extends RemotingService {
      * @param callback
      */
     void invokeAsync(final String addr, final RemotingCommand request, long timeoutMillis,
-                     InvokeCallback callback) throws RemotingConnectException, RemotingTimeoutException, InterruptedException, RemotingSendRequestException;
+                     InvokeCallback callback) throws RemotingConnectException, RemotingTimeoutException, InterruptedException, RemotingSendRequestException, RemotingTooMuchException;
 
     /**
      * 单向执行
      * @param addr
      * @param request
      * @param timeoutMillis
-     * @param callback
      */
-    void invokeOneway(final String addr, final RemotingCommand request, long timeoutMillis) throws RemotingConnectException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException;
+    void invokeOneway(final String addr, final RemotingCommand request, long timeoutMillis) throws RemotingConnectException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingTooMuchException;
 
-    void registerProcessor(final int code, final RemotingProcessor processor, ExecutorService executorService);
+    void registerProcessor(final int code, final RequestProcessor processor, ExecutorService executorService);
 
     ExecutorService getCallbackExecutor();
 
