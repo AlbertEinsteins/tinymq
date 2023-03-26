@@ -1,9 +1,11 @@
 package remote;
 
+import com.tinymq.remote.netty.NettyEventListener;
 import com.tinymq.remote.netty.NettyRemotingServer;
 import com.tinymq.remote.netty.NettyServerConfig;
 import com.tinymq.remote.netty.RequestProcessor;
 import com.tinymq.remote.protocol.RemotingCommand;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.nio.charset.StandardCharsets;
@@ -25,6 +27,28 @@ public class Server {
             return false;
         }
     }
+    static class MyNettyEventListener implements NettyEventListener {
+        @Override
+        public void onChannelConnect(String remoteAddr, Channel channel) {
+
+        }
+
+        @Override
+        public void onChannelClose(String remoteAddr, Channel channel) {
+
+        }
+
+        @Override
+        public void onChannelIdle(String remoteAddr, Channel channel) {
+            System.out.println("channel is idle" + remoteAddr);
+        }
+
+        @Override
+        public void onChannelException(String remoteAddr, Channel channel) {
+
+        }
+    }
+
     public static void main(String[] args) {
         NettyServerConfig serverConfig = new NettyServerConfig();
         serverConfig.setListenPort(7800);

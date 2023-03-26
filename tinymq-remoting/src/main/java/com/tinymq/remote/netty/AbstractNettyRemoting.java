@@ -2,6 +2,7 @@ package com.tinymq.remote.netty;
 
 import cn.hutool.core.lang.Pair;
 import cn.hutool.core.util.ObjectUtil;
+import com.tinymq.common.utils.ServiceThread;
 import com.tinymq.remote.InvokeCallback;
 import com.tinymq.remote.RPCHook;
 import com.tinymq.remote.common.RemotingUtils;
@@ -46,6 +47,9 @@ public abstract class AbstractNettyRemoting {
     public abstract ExecutorService getCallbackExecutor() ;
 
 
+    protected final NettyEventExecutor nettyEventExecutor = new NettyEventExecutor();
+
+    public abstract NettyEventListener getEventListener();
 
     public AbstractNettyRemoting(int oneWayPermits, int asyncPermits) {
         this.semaphoreOneWay = new Semaphore(oneWayPermits, true);
@@ -85,7 +89,7 @@ public abstract class AbstractNettyRemoting {
         }
     }
 
-    public void processRequestMessage(ChannelHandlerContext ctx, RemotingCommand msg) {
+    protected void processRequestMessage(ChannelHandlerContext ctx, RemotingCommand msg) {
         final Pair<RequestProcessor, ExecutorService> servicePair = processorTable.get(msg.getCode());
         final Pair<RequestProcessor, ExecutorService> pair = servicePair == null ? defaultProcessor : servicePair;
         final int reqId = msg.getRequestId();
@@ -161,7 +165,7 @@ public abstract class AbstractNettyRemoting {
         }
     }
 
-    public void processReceiveMessage(final ChannelHandlerContext ctx, final RemotingCommand msg) {
+    protected void processReceiveMessage(final ChannelHandlerContext ctx, final RemotingCommand msg) {
         final int reqId = msg.getRequestId();
         ResponseFuture responseFuture = responseTable.get(reqId);
         if(responseFuture != null) {
@@ -375,4 +379,58 @@ public abstract class AbstractNettyRemoting {
             }
         }
     }
+
+    class NettyEventExecutor extends ServiceThread {
+        //最大事件数量
+        private final int maxSize = 10000;
+        private final LinkedBlockingQueue<NettyEvent> eventQueue = new LinkedBlockingQueue<NettyEvent>(maxSize);
+
+        @Override
+        public String getServiceName() {
+            return NettyEventExecutor.class.getSimpleName();
+        }
+
+        public void putEvent(final NettyEvent nettyEvent) throws InterruptedException {
+            if(eventQueue.size() < maxSize) {
+                this.eventQueue.put(nettyEvent);
+            } else {
+                LOGGER.warn("the netty event queue is full, drop event: " + nettyEvent);
+            }
+        }
+
+        /*根据注入的监听器处理NettyEvent事件*/
+        @Override
+        public void run() {
+            final NettyEventListener nettyEventListener = AbstractNettyRemoting.this.getEventListener();
+            LOGGER.info(getServiceName() + ": start handle event");
+            while(!isStop) {
+                try {
+                    NettyEvent event = eventQueue.poll(3000, TimeUnit.MILLISECONDS);
+                    if(event == null || nettyEventListener == null) {
+                        continue;
+                    }
+                    switch (event.getEventType()) {
+                        case IDLE:
+                            nettyEventListener.onChannelIdle(event.getRemoteAddr(), event.getChannel());
+                            break;
+                        case CLOSE:
+                            nettyEventListener.onChannelClose(event.getRemoteAddr(), event.getChannel());
+                            break;
+                        case CONNECT:
+                            nettyEventListener.onChannelConnect(event.getRemoteAddr(), event.getChannel());
+                            break;
+                        case EXCEPTION:
+                            nettyEventListener.onChannelException(event.getRemoteAddr(), event.getChannel());
+                            break;
+                        default:
+                            break;
+                    }
+                } catch (InterruptedException e) {
+                    LOGGER.error(getServiceName() + ": exception occurred", e);
+                }
+            }
+            LOGGER.info(getServiceName() + ": end");
+        }
+    }
+
 }

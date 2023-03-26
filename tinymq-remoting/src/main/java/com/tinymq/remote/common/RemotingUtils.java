@@ -4,13 +4,25 @@ package com.tinymq.remote.common;
 import io.netty.channel.Channel;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 public class RemotingUtils {
     private RemotingUtils() { }
 
     public static String parseRemoteAddress(final Channel channel) {
-        String remoteAddress = channel.remoteAddress().toString();
-        return remoteAddress;
+        if(channel != null) {
+            return parseRemoteAddress(channel.remoteAddress());
+        }
+        return "";
+    }
+    public static String parseRemoteAddress(final SocketAddress socketAddress) {
+        String remoteAddress = socketAddress.toString();
+
+        if(remoteAddress != null) {
+            int split = remoteAddress.lastIndexOf("/");
+            return remoteAddress.substring(split + 1);
+        }
+        return "";
     }
 
 

@@ -8,6 +8,8 @@ public class NettyServerConfig {
     private int serverOnewaySemaphoreValue = NettySystemConfig.semaphoreOneway;
     private int serverAsyncSemaphoreValue = NettySystemConfig.semaphoreAsync;
 
+    private int idleMilliSeconds = NettySystemConfig.idleMilliseconds;
+
 
     public int getServerWorkerThreads() {
         return serverWorkerThreads;
@@ -47,5 +49,13 @@ public class NettyServerConfig {
 
     public void setListenPort(int listenPort) {
         this.listenPort = listenPort;
+    }
+
+    public int getIdleMilliSeconds() {
+        return idleMilliSeconds;
+    }
+
+    public void setIdleMilliSeconds(int idleMilliSeconds) {
+        this.idleMilliSeconds = idleMilliSeconds;
     }
 }

@@ -6,7 +6,7 @@ public class NettyClientConfig {
     private int clientOnewaySemaphoreValue = NettySystemConfig.semaphoreOneway;
     private int clientAsyncSemaphoreValue = NettySystemConfig.semaphoreAsync;
 
-
+    private int idleMilliseconds = NettySystemConfig.idleMilliseconds;
 
 
 
@@ -40,5 +40,13 @@ public class NettyClientConfig {
 
     public void setClientAsyncSemaphoreValue(int clientAsyncSemaphoreValue) {
         this.clientAsyncSemaphoreValue = clientAsyncSemaphoreValue;
+    }
+
+    public int getIdleMilliseconds() {
+        return idleMilliseconds;
+    }
+
+    public void setIdleMilliseconds(int idleMilliseconds) {
+        this.idleMilliseconds = idleMilliseconds;
     }
 }

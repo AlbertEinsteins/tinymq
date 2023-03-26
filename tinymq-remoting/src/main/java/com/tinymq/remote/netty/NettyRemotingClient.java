@@ -14,9 +14,12 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketAddress;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.*;
@@ -54,6 +57,11 @@ public class NettyRemotingClient extends AbstractNettyRemoting
     private DefaultEventLoopGroup defaultEventLoopGroup;
 
     private ExecutorService callbackExecutor;
+
+    @Override
+    public NettyEventListener getEventListener() {
+        return this.nettyEventListener;
+    }
 
     public NettyRemotingClient(final NettyClientConfig clientConfig) {
         this(clientConfig, null);
@@ -127,6 +135,8 @@ public class NettyRemotingClient extends AbstractNettyRemoting
             this.channelTable.clear();
 
             this.eventLoopGroupWorker.shutdownGracefully();
+            // 关闭后台处理事件的线程
+            this.nettyEventExecutor.shutdown();
             if(this.defaultEventLoopGroup != null) {
                 this.defaultEventLoopGroup.shutdownGracefully();
             }
@@ -144,21 +154,22 @@ public class NettyRemotingClient extends AbstractNettyRemoting
         if(channel == null) {
             return ;
         }
-        String addrRemote = addr;
+        final String remoteAddr = addr == null ? RemotingUtils.parseRemoteAddress(channel) : addr;
         try {
             if(lockChannelTable.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 boolean isRemove = true;
 
-                ChannelWrapper wrapper = channelTable.get(addr);
+                ChannelWrapper wrapper = channelTable.get(remoteAddr);
                 if(wrapper == null) {
                     isRemove = false;
-                    LOGGER.info("closeChannel: the channel[{}] has been removed from the channel table before", addrRemote);
+                    LOGGER.info("closeChannel: the channel[{}] has been removed from the channel table before", remoteAddr);
                 } else if(wrapper.getChannel() != channel) {
                     isRemove = false;
-                    LOGGER.info("closeChannel: the channel[{}] has been closed from the channel table before", addrRemote);
+                    LOGGER.info("closeChannel: the channel[{}] has been closed from the channel table before", remoteAddr);
                 }
                 if(isRemove) {
-                    channelTable.remove(addr);
+                    channelTable.remove(remoteAddr);
+                    // 关闭与服务器的通道
                     channel.close();
                 }
             } else {
@@ -168,7 +179,6 @@ public class NettyRemotingClient extends AbstractNettyRemoting
             LOGGER.warn("method closeChannel interrupt exception occurred");
         }
     }
-
 
     /**
      * create channel according to addr
@@ -196,6 +206,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
 
                 if(isCreateNew) {
                     ChannelFuture cf = this.bootstrap.connect(RemotingUtils.addrToNetAddress(addr));
+                    LOGGER.info("create channel successfully: {}", addr);
                     cw = new ChannelWrapper(cf);
                     this.channelTable.put(addr, cw);
                 }
@@ -343,8 +354,6 @@ public class NettyRemotingClient extends AbstractNettyRemoting
         return this.callbackExecutor == null ? this.publicExecutorService : this.callbackExecutor;
     }
 
-
-
     static class ChannelWrapper {
         private final ChannelFuture channelFuture;
         public ChannelWrapper(final ChannelFuture channelFuture) {
@@ -371,6 +380,50 @@ public class NettyRemotingClient extends AbstractNettyRemoting
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) throws Exception {
             processMessage(ctx, msg);
+        }
+    }
+
+    class NettyConnectManager extends ChannelDuplexHandler {
+        @Override
+        public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) throws Exception {
+            LOGGER.info("connect local {} to remote {}", RemotingUtils.parseRemoteAddress(localAddress),
+                    RemotingUtils.parseRemoteAddress(remoteAddress));
+            super.connect(ctx, remoteAddress, localAddress, promise);
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+            LOGGER.info("channel {} is active", remoteAddr);
+
+            if(nettyEventListener != null) {
+                NettyRemotingClient.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr, ctx.channel(), NettyEventType.CONNECT));
+            }
+            super.channelActive(ctx);
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+            LOGGER.info("channel {} is inActive", remoteAddr);
+            if(nettyEventListener != null) {
+                NettyRemotingClient.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr, ctx.channel(), NettyEventType.CONNECT));
+            }
+            super.channelInactive(ctx);
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if(evt instanceof IdleStateEvent) {
+                IdleStateEvent idleStateEvent = (IdleStateEvent) evt;
+                if(idleStateEvent.state().equals(IdleState.ALL_IDLE)) {
+                    String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+                    LOGGER.warn("channel {} is idle, close it", remoteAddr);
+                    closeChannel(null, ctx.channel());
+                }
+            }
+
+            super.userEventTriggered(ctx, evt);
         }
     }
 }

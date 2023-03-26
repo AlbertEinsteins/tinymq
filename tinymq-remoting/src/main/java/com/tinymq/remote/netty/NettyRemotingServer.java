@@ -1,9 +1,11 @@
 package com.tinymq.remote.netty;
 
 import cn.hutool.core.lang.Pair;
+import com.tinymq.common.utils.ServiceThread;
 import com.tinymq.remote.InvokeCallback;
 import com.tinymq.remote.RPCHook;
 import com.tinymq.remote.RemotingServer;
+import com.tinymq.remote.common.RemotingUtils;
 import com.tinymq.remote.exception.RemotingSendRequestException;
 import com.tinymq.remote.exception.RemotingTimeoutException;
 import com.tinymq.remote.exception.RemotingTooMuchException;
@@ -13,15 +15,17 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
+import java.util.LinkedList;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NettyRemotingServer extends AbstractNettyRemoting
@@ -49,8 +53,14 @@ public class NettyRemotingServer extends AbstractNettyRemoting
 
     /* prepare sharable handler */
     private NettyEncoder encoder;
+    private NettyConnectManagerHandler connectManagerHandler;
 
     private NettyServerHandler nettyServerHandler;
+
+    @Override
+    public NettyEventListener getEventListener() {
+        return this.eventListener;
+    }
 
     public NettyRemotingServer(NettyServerConfig nettyServerConfig) {
         this(nettyServerConfig, null);
@@ -123,6 +133,9 @@ public class NettyRemotingServer extends AbstractNettyRemoting
                         ch.pipeline().addLast(defaultEventLoopGroup,
                                 encoder,
                                 new NettyDecoder(),
+                                new IdleStateHandler(0, 0,
+                                        nettyServerConfig.getIdleMilliSeconds(), TimeUnit.MILLISECONDS),
+                                new NettyConnectManagerHandler(),
                                 new NettyServerHandler());
                     }
                 });
@@ -139,6 +152,7 @@ public class NettyRemotingServer extends AbstractNettyRemoting
 
     private void prepareSharableHandler() {
         this.encoder = new NettyEncoder();
+        this.connectManagerHandler = new NettyConnectManagerHandler();
         this.nettyServerHandler = new NettyServerHandler();
     }
 
@@ -151,6 +165,9 @@ public class NettyRemotingServer extends AbstractNettyRemoting
 
             this.defaultEventLoopGroup.shutdownGracefully();
             this.publicExecutor.shutdown();
+
+            // 关闭后台线程服务
+            this.nettyEventExecutor.shutdown();
 
         } catch (Exception e) {
             LOGGER.warn("server shutdown exception", e);
@@ -204,6 +221,64 @@ public class NettyRemotingServer extends AbstractNettyRemoting
     @Override
     public ExecutorService getCallbackExecutor() {
         return this.publicExecutor;
+    }
+
+
+    @ChannelHandler.Sharable
+    class NettyConnectManagerHandler extends ChannelDuplexHandler {
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+            LOGGER.info("the remote channel {} pipeline is inactivate", remoteAddr);
+            super.channelInactive(ctx);
+
+            if(NettyRemotingServer.this.eventListener != null) {
+                NettyRemotingServer.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr,
+                        ctx.channel(), NettyEventType.CLOSE));
+            }
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+            LOGGER.info("the remote channel {} pipeline is active", remoteAddr);
+            super.channelActive(ctx);
+
+            if(NettyRemotingServer.this.eventListener != null) {
+                NettyRemotingServer.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr,
+                        ctx.channel(), NettyEventType.CONNECT));
+            }
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if(evt instanceof IdleStateEvent) {
+                IdleStateEvent idleStateEvent = (IdleStateEvent) evt;
+                if(idleStateEvent.state().equals(IdleState.ALL_IDLE)) {
+                    String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+                    LOGGER.warn("server pipeline triggered idle event, in channel {}, close channel", remoteAddr);
+                    ctx.channel().close();
+                    if(NettyRemotingServer.this.eventListener != null) {
+                        NettyRemotingServer.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr,
+                                ctx.channel(), NettyEventType.IDLE));
+                    }
+                }
+
+            }
+            super.userEventTriggered(ctx, evt);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
+            LOGGER.warn("the remote channel {} occurred exception, when handles it.", remoteAddr);
+            super.exceptionCaught(ctx, cause);
+            ctx.channel().close();
+            if(NettyRemotingServer.this.eventListener != null) {
+                NettyRemotingServer.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr,
+                        ctx.channel(), NettyEventType.EXCEPTION));
+            }
+        }
     }
 
     @ChannelHandler.Sharable

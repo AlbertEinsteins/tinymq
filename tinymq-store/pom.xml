@@ -7,10 +7,10 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>remoting</artifactId>
+    <artifactId>tinymq-store</artifactId>
     <packaging>jar</packaging>
 
-    <name>remoting</name>
+    <name>tinymq-store</name>
     <url>http://maven.apache.org</url>
 
     <properties>
@@ -18,10 +18,6 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>com.tinymq</groupId>
-            <artifactId>tinymq-common</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
+
     </dependencies>
 </project>
