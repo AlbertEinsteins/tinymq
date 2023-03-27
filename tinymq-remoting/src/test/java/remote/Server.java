@@ -53,7 +53,7 @@ public class Server {
         NettyServerConfig serverConfig = new NettyServerConfig();
         serverConfig.setListenPort(7800);
 
-        NettyRemotingServer server = new NettyRemotingServer(serverConfig);
+        NettyRemotingServer server = new NettyRemotingServer(serverConfig, new MyNettyEventListener());
         server.registerProcessor(100, new MyRequestProcessor(), null);
 
         server.start();

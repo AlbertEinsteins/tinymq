@@ -16,6 +16,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,6 +97,9 @@ public class NettyRemotingClient extends AbstractNettyRemoting
 
 
     public void start() {
+        //启动后台线程
+        this.nettyEventExecutor.start();
+
         this.defaultEventLoopGroup = new DefaultEventLoopGroup(nettyClientConfig.getClientWorkerThreads(), new ThreadFactory() {
             private final AtomicInteger threadIdx = new AtomicInteger(0);
 
@@ -113,6 +117,8 @@ public class NettyRemotingClient extends AbstractNettyRemoting
                         pipeline.addLast(defaultEventLoopGroup,
                                 new NettyEncoder(),
                                 new NettyDecoder(),
+                                new IdleStateHandler(0, 0, nettyClientConfig.getIdleMilliseconds(), TimeUnit.MILLISECONDS),
+                                new NettyConnectManager(),
                                 new NettyClientHandler());
                     }
                 });
@@ -257,7 +263,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
                 doAfterHooks(addr, request, response);
                 return response;
             } catch (RemotingSendRequestException e) {
-                LOGGER.warn("invokeSync send request failed, close the channel {}", addr);
+                LOGGER.warn("invokeSync send request failed, the remote channel {} may be not exist", addr);
                 closeChannel(addr, channel);
                 throw e;
             } catch (RemotingTimeoutException e) {
@@ -386,7 +392,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
     class NettyConnectManager extends ChannelDuplexHandler {
         @Override
         public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) throws Exception {
-            LOGGER.info("connect local {} to remote {}", RemotingUtils.parseRemoteAddress(localAddress),
+            LOGGER.info("connect to remote {}",
                     RemotingUtils.parseRemoteAddress(remoteAddress));
             super.connect(ctx, remoteAddress, localAddress, promise);
         }
@@ -405,7 +411,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
             String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
-            LOGGER.info("channel {} is inActive", remoteAddr);
+            LOGGER.info("remote channel {} is inActive", remoteAddr);
             if(nettyEventListener != null) {
                 NettyRemotingClient.this.nettyEventExecutor.putEvent(new NettyEvent(remoteAddr, ctx.channel(), NettyEventType.CONNECT));
             }
@@ -418,7 +424,7 @@ public class NettyRemotingClient extends AbstractNettyRemoting
                 IdleStateEvent idleStateEvent = (IdleStateEvent) evt;
                 if(idleStateEvent.state().equals(IdleState.ALL_IDLE)) {
                     String remoteAddr = RemotingUtils.parseRemoteAddress(ctx.channel());
-                    LOGGER.warn("channel {} is idle, close it", remoteAddr);
+                    LOGGER.warn("remote channel {} is idle, close it", remoteAddr);
                     closeChannel(null, ctx.channel());
                 }
             }

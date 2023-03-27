@@ -16,6 +16,6 @@ public class NettySystemConfig {
             Integer.parseInt(System.getProperty(REMOTING_CLIENT_SEMAPHORE_ASYNC, "32767"));
 
     public static int idleMilliseconds =
-            Integer.parseInt(System.getProperty(REMOTING_CLIENT_IDLE_SECONDS, "120000"));
+            Integer.parseInt(System.getProperty(REMOTING_CLIENT_IDLE_SECONDS, "20000"));
 
 }

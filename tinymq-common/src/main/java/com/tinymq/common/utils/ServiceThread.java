@@ -18,8 +18,7 @@ public abstract class ServiceThread implements Runnable {
     }
 
 
-    @Override
-    public void run() {
+    public void start() {
         this.thread.start();
     }
 

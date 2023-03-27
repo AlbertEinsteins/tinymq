@@ -109,6 +109,9 @@ public class NettyRemotingServer extends AbstractNettyRemoting
     }
 
     public void start() {
+        //开启后台线程
+        this.nettyEventExecutor.start();
+
         this.defaultEventLoopGroup = new DefaultEventLoopGroup(nettyServerConfig.getServerWorkerThreads(), new ThreadFactory() {
             private final AtomicInteger threadIdx = new AtomicInteger(0);
 

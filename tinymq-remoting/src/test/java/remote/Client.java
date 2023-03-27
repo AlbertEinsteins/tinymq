@@ -30,7 +30,7 @@ public class Client {
 
         @Override
         public void onChannelIdle(String remoteAddr, Channel channel) {
-
+            System.out.println("channel idle");
         }
 
         @Override
@@ -41,8 +41,7 @@ public class Client {
 
     public static void main(String[] args) throws RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException, InterruptedException, RemotingTooMuchException {
         NettyClientConfig clientConfig = new NettyClientConfig();
-        NettyRemotingClient client = new NettyRemotingClient(clientConfig);
-
+        NettyRemotingClient client = new NettyRemotingClient(clientConfig, new MyNettyHandlerListener());
 
         client.start();
 
