@@ -183,6 +183,8 @@ public class NettyRemotingClient extends AbstractNettyRemoting
             }
         } catch (InterruptedException e) {
             LOGGER.warn("method closeChannel interrupt exception occurred");
+        } finally {
+            lockChannelTable.unlock();
         }
     }
 
@@ -221,6 +223,8 @@ public class NettyRemotingClient extends AbstractNettyRemoting
             }
         } catch (Exception e) {
             LOGGER.error("createChannel exception occurred", e);
+        } finally {
+            lockChannelTable.unlock();
         }
 
         if(cw != null) {
